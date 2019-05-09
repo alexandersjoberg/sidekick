@@ -135,8 +135,8 @@ def create_dataset(dataset_path: str,
         disable=not progress
     )
     with ZipFile(dataset_path, 'w', compression=ZIP_DEFLATED) as dataset_zip:
-        # Add .sidekick metadata
-        dataset_zip.writestr('.sidekick', b'')
+        # Add metadata file to track usage
+        dataset_zip.writestr('metadata.json', '{ "source" : "sidekick" }')
 
         # Copy over without preprocessing
         for column in path_columns.difference(preprocess):

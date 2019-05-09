@@ -103,9 +103,10 @@ def test_dataset_metadata(dataset_index, tmpdir):
         preprocess={'image_column': set_image_format}
     )
 
-    # Assert the .sidekick metadata was added
+    # Assert that the metadata file was added
     with zipfile.ZipFile(dataset_path, 'r') as zf:
-        assert '.sidekick' in zf.namelist()
+        metadata = zf.read('metadata.json')
+        assert metadata == b'{ "source" : "sidekick" }'
 
 
 def test_import_multiple_formats(tmpdir):

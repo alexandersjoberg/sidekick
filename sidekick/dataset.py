@@ -30,6 +30,26 @@ def crop_image(image: Image.Image, size: Tuple[int, int]) -> Image.Image:
     return cropped_image
 
 
+def crop_and_resize_image(
+        image: Image.Image, size: Tuple[int, int]) -> Image.Image:
+    size = np.array(size)
+    source_size = np.array(image.size)
+    if np.any([x <= 0 for x in source_size]):
+        raise ValueError('Bad shape requested: %s' % (tuple(size), ))
+
+    # Find best factor for crop
+    for source_dim, target_dim in zip(source_size, size):
+        # Check that factor * size fits in source_size
+        if np.all(source_dim * size <= source_size * target_dim):
+            factor = source_dim / target_dim
+            image = crop_image(image, factor * size)
+            image = resize_image(image, size)
+            return image
+
+    # No factor found indicates weird shape of original image
+    raise ValueError('Bad shape of image: %s' % (tuple(source_size), ))
+
+
 def resize_image(image: Image.Image, size: Tuple[int, int]) -> Image.Image:
     resized_image = image.resize(size)
     resized_image.format = image.format
@@ -39,26 +59,40 @@ def resize_image(image: Image.Image, size: Tuple[int, int]) -> Image.Image:
 def process_image(image: Image.Image,
                   mode: str = 'center_crop_or_pad',
                   size: Tuple[int, int] = None,
-                  file_format: str = None):
+                  file_format: str = None) -> Image.Image:
     """Process image
+
+    Used to process images to conform to a certain size and/or file format. The
+    following modes are available for resizing:
+
+        - 'center_crop_or_pad': crop or pad around the center of the image to
+            achieve the target size, maintains proportion and resolution
+        - 'resize': resize the image to match the target size, may result in
+            changed proportions and resolution
+        - 'crop_and_resize': crop the largest central part proportional to the
+            target size and resize it to target size, maintains proportions but
+            may change resolution
+
     Args:
         image: Image to process (will be modified)
-        mode: {'center_crop_or_pad', 'resize'}.
-              Only active if size is not None.
+        mode: {'center_crop_or_pad', 'crop_and_resize', 'resize'}.
+              Resizing mode, see above for descriptions. Only active if size is
+              not None
         size: Output image size (width, height)
         file_format: Set to modify format. Can be 'png' or 'jpeg'.
+
     Returns:
-        image
+        Processed image
     """
-    modes = {'center_crop_or_pad', 'resize'}
+    modes = {'center_crop_or_pad', 'crop_and_resize', 'resize'}
 
     if size:
         if mode == 'center_crop_or_pad':
             image = crop_image(image, size)
-
         elif mode == 'resize':
             image = resize_image(image, size)
-
+        elif mode == 'crop_and_resize':
+            image = crop_and_resize_image(image, size)
         else:
             raise ValueError('Mode not supported. Available: %s' % modes)
 

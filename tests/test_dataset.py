@@ -137,21 +137,68 @@ def test_import_multiple_formats(tmpdir):
     assert os.path.exists(dataset_path) and os.path.getsize(dataset_path) > 100
 
 
-class TestProcessImage:
-    def test_crop_image(self):
-        size = (10, 15)
-        file_format = 'png'
-        image = Image.new(mode='RGB', size=(100, 100))
-        image.format = file_format
-        cropped_image = sidekick.dataset.crop_image(image, size=size)
-        assert cropped_image.size == size
-        assert cropped_image.format == file_format
+def test_process_image_modes():
+    target_size = (299, 399)
+    file_format = 'png'
+    image = Image.new(mode='RGB', size=(600, 450))
+    modes = ('center_crop_or_pad', 'crop_and_resize', 'resize')
+    for mode in modes:
+        new_image = sidekick.process_image(
+            image=image,
+            mode=mode,
+            size=target_size,
+            file_format=file_format
+        )
+        assert new_image.size == target_size
+        assert new_image.format == file_format
 
-    def test_resize_image(self):
-        size = (10, 15)
-        file_format = 'png'
-        image = Image.new(mode='RGB', size=(100, 100))
-        image.format = file_format
-        resized_image = sidekick.dataset.resize_image(image, size=size)
-        assert resized_image.size == size
-        assert resized_image.format == file_format
+
+def test_crop_image():
+    size = (10, 15)
+    file_format = 'png'
+    image = Image.new(mode='RGB', size=(100, 100))
+    image.format = file_format
+    cropped_image = sidekick.dataset.crop_image(image, size=size)
+    assert cropped_image.size == size
+    assert cropped_image.format == file_format
+
+
+def test_crop_and_resize_image():
+    # Assert nothing happens if size matches
+    size = (10, 10)
+    file_format = 'png'
+    image = Image.fromarray(np.random.rand(*size))
+    image.format = file_format
+    new_image = sidekick.dataset.crop_and_resize_image(
+        image=image, size=size)
+
+    assert new_image.size == size
+    assert new_image.format == file_format
+    assert np.allclose(np.array(image), np.array(new_image))
+
+    # Assert that there is only a resize if proportions match
+    new_size = (20, 20)
+    new_image = sidekick.dataset.crop_and_resize_image(
+        image=image, size=new_size)
+
+    assert new_image.size == new_size
+    assert new_image.format == file_format
+    assert np.allclose(np.array(image.resize(new_size)), np.array(new_image))
+
+    # Assert can handle change of proportion and size
+    new_size = (20, 10)
+    new_image = sidekick.dataset.crop_and_resize_image(
+        image=image, size=new_size)
+
+    assert new_image.format == file_format
+    assert new_image.size == new_size
+
+
+def test_resize_image():
+    size = (10, 15)
+    file_format = 'png'
+    image = Image.new(mode='RGB', size=(100, 100))
+    image.format = file_format
+    resized_image = sidekick.dataset.resize_image(image, size=size)
+    assert resized_image.size == size
+    assert resized_image.format == file_format

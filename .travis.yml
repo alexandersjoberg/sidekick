@@ -12,6 +12,8 @@ matrix:
   - python: 3.8-dev
     env: TOXENV=py38
 
+cache: pip
+
 install:
   - pip install tox
 

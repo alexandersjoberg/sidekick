@@ -1,31 +1,23 @@
 language: python
 dist: xenial  # required for python 3.7+
-python:
-  - "3.5"
-  - "3.6"
-  - "3.7"
-  - "3.8-dev"
-cache: pip
+
+matrix:
+ include:
+  - python: 3.5
+   env: TOXENV=py35
+  - python: 3.6
+   env: TOXENV=py36
+  - python: 3.7
+    env: TOXENV=py37
+  - python: 3.8-dev
+    env: TOXENV=py38
+
 install:
-  - pip install --upgrade mypy coverage isort flake8 flake8-bugbear pep8-naming
+  - pip install tox
+
 script:
-  # Install sidekick
-  - pip install .[test]
+  - tox
 
-  # Check type hints
-  - mypy --ignore-missing-imports .  # numpy etc. misses library stub files
-
-  # Validate import statements sort (standard lib / third-party / first-party)
-  - isort --check-only
-  - isort --diff
-
-  # Check for unused symbols/imports and PEP8 formatting.
-  - flake8 --version
-  - flake8 --disable-noqa
-
-  # Run unit tests (while measuring coverage).
-  - coverage run --branch --source sidekick -m pytest
-  - coverage report -m --fail-under 85
 deploy:
   provider: releases
   on:

@@ -9,10 +9,8 @@ REQUIRED_PACKAGES = [
 ]
 
 TEST_REQUIRED_PACKAGES = [
-    'responses',
-    'pytest'
+    'tox',
 ]
-
 
 setup(
     name='sidekick',

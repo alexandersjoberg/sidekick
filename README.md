@@ -178,17 +178,15 @@ client.predict_lazy([
 ])
 ```
 
-### Object type and field type compatibility
-Which object types are compatible with each field type may be shown by printing
-the `sidekick.encode.DTYPE_COMPATIBLITY` dictionary.
-
+### Compatible filetypes and available field types
+The filetypes compatible with sidekick may shown by:
 ```python
-print(sidekick.encode.DTYPE_COMPATIBILITY)
+print(sidekick.encode.FILE_EXTENSION_ENCODERS)
+```
 
-{'Float': {float},
- 'Int': {int},
- 'Numpy': {numpy.ndarray},
- 'Image': {PIL.Image.Image}}
+Currently supported field types may be shown by:
+```python
+print(sidekick.encode.DTYPE_ENCODERS)
 ```
 
 # Examples

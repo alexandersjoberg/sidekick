@@ -24,7 +24,7 @@ script:
   - flake8 --disable-noqa
 
   # Run unit tests (while measuring coverage).
-  - coverage run --branch --source . -m pytest
+  - coverage run --branch --source sidekick -m pytest
   - coverage report -m --fail-under 85
 deploy:
   provider: releases

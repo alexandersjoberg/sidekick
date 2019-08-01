@@ -103,8 +103,9 @@ sidekick.create_dataset(
 
 
 ## Get predictions out - Use a deployed experiment
-To connect to an enabled deployment use the `sidekick.Deployment` class. This class
-takes the information you find on the deployment page of an experiment.
+To connect to an enabled deployment use the `sidekick.Deployment` class. This
+class takes the information you find on the deployment page of an experiment.
+
 
 **Example**
 
@@ -112,23 +113,26 @@ This example shows how to query an enabled deployment for image classification.
 
 ![deployment example](static/image/deployment_example.png "Deployment example")
 
-Use the `url` and `token` displayed in the dark box. Then, create a dictionary
-of the Feature _Name_ and _Type_ (here `image` and `Image (32x32x3)`) fields
-from the table of input and output parameters to specify `dtypes_in` and
-`dtypes_out`.
+Use the `url` and `token` displayed in the dark box.
 
 ```python
 import sidekick
 
-client = sidekick.Deployment(
-    url='<url>',
-    token='<token>',
-    dtypes_in={'image': 'Image (32x32x3)'},
-    dtypes_out={'image': 'Image (32x32x3)'}
-)
+client = sidekick.Deployment(url='<url>', token='<token>')
 ```
 
-This deployment client may now be used to get predictions for images
+This deployment client may now be used to get predictions for images. 
+
+The feature specifications from the table of input and output parameters can be accessed as a 
+property of the client object: 
+
+```python
+# input features
+client.feature_specs_in
+
+# output features
+client.feature_specs_out
+```
 
 ### Test deployment with one sample - predict
 

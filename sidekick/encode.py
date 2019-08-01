@@ -2,11 +2,13 @@ import abc
 import base64
 import io
 import itertools
-from numbers import Real
+import warnings
 from typing import Any, Mapping, Set, Tuple
 
 import numpy as np
 from PIL import Image
+
+from .data_models import FeatureSpec
 
 DataItem = Mapping[str, Any]
 
@@ -36,8 +38,15 @@ class Encoder(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def verify(self, value, shape: Tuple[int, ...]):
+    def check_shape(self, value, shape):
         pass
+
+    def check_type(self, value):
+        expected_types = self.expects()
+        if not isinstance(value, tuple(expected_types)):
+            raise TypeError(
+                'Expected %s but received %s' % (self.expects(), type(value))
+            )
 
 
 class BinaryEncoder(Encoder):
@@ -81,64 +90,56 @@ class CategoricalEncoder(Encoder):
     def expects(self) -> Set:
         return {dict}
 
-    def verify(self, value: dict, shape: Tuple[int, ...]):
-        shape = tuple(shape)
-        if len(shape) != 1:
-            raise ValueError(
-                'Required shape: %s but Categorical must be 1-D' % shape)
+    def check_shape(self, value: dict, shape: Tuple[int]):
         if len(value) != shape[0]:
             raise ValueError('Categorical expected %i values, got: %i'
                              % (shape[0], len(value)))
 
-    @staticmethod
-    def check_type(value):
-        if not isinstance(value, dict):
-            raise TypeError('Expected %s but received %s' %
-                            (dict, type(value)))
-
-    @classmethod
-    def encode(cls, value):
-        cls.check_type(value)
-        return value
-
-    @classmethod
-    def decode(cls, encoded):
-        cls.check_type(encoded)
-        return encoded
-
-
-class ScalarEncoder(Encoder):
-
-    def __init__(self, scalar_type):
-        self._scalar_type = scalar_type
-
-    def expects(self) -> Set:
-        return {self._scalar_type}
-
-    def verify(self, scalar: Real, shape: Tuple[int, ...]):
-        shape = tuple(shape)
-        if shape != (1, ):
-            raise ValueError('Required shape: %s but Float must be scalar'
-                             % shape)
-
-    def check_type(self, value):
-        if not isinstance(value, self._scalar_type):
-            raise TypeError('Expected %s but received %s' %
-                            (self._scalar_type, type(value)))
-
     def encode(self, value):
-        self.check_type(value)
         return value
 
     def decode(self, encoded):
-        self.check_type(encoded)
+        return encoded
+
+
+class TextEncoder(Encoder):
+
+    def expects(self) -> Set:
+        return {str}
+
+    def check_shape(self, value: str, shape: Tuple[int]):
+        if len(value) >= shape[0]:
+            warnings.warn(
+                'Text will be cropped to not exceed maximum length. '
+                'Text length: %s characters. '
+                'Maximum length: %s characters.' % (len(value), shape[0])
+            )
+
+    def encode(self, value):
+        return value
+
+    def decode(self, encoded):
+        return encoded
+
+
+class NumericEncoder(Encoder):
+
+    def expects(self) -> Set:
+        return {int, float}
+
+    def check_shape(self, value, shape):
+        pass
+
+    def encode(self, value):
+        return value
+
+    def decode(self, encoded):
         return encoded
 
 
 class NumpyEncoder(BinaryEncoder):
 
-    @classmethod
-    def file_extension(cls, value):
+    def file_extension(self, value):
         return 'npy'
 
     def media_type(self, value):
@@ -147,25 +148,18 @@ class NumpyEncoder(BinaryEncoder):
     def expects(self) -> Set:
         return {np.ndarray}
 
-    @classmethod
-    def verify(cls, value: np.ndarray, shape: Tuple[int, ...]):
-        if not isinstance(value, np.ndarray):
-            raise TypeError('Expected numpy array but received %s'
-                            % type(value))
-        shape = tuple(shape)
+    def check_shape(self, value: np.ndarray, shape: Tuple[int, ...]):
         if value.shape != shape:
             raise ValueError('Expected shape: %s, numpy array has shape: %s'
                              % (shape, value.shape))
 
-    @classmethod
-    def encode(cls, value: np.ndarray) -> bytes:
+    def encode(self, value: np.ndarray) -> bytes:
         value = value.astype(np.float32)
         with io.BytesIO() as buffer:
             np.save(buffer, value)
             return buffer.getvalue()
 
-    @classmethod
-    def decode(cls, encoded: bytes) -> np.ndarray:
+    def decode(self, encoded: bytes) -> np.ndarray:
         with io.BytesIO(encoded) as buffer:
             array = np.load(buffer)
         return array
@@ -180,19 +174,13 @@ class ImageEncoder(BinaryEncoder):
         return value.format.lower()
 
     def media_type(self, value):
-        if value.format is None:
-            raise ValueError('No format set on image, please specify manually')
-        return 'image/' + value.format.lower()
+        file_extension = self.file_extension(value)
+        return 'image/' + file_extension
 
     def expects(self) -> Set:
         return {Image.Image}
 
-    @classmethod
-    def verify(cls, image: Image, shape: Tuple[int, ...]):
-        if not isinstance(image, Image.Image):  # This really is the type...
-            raise TypeError('Expected an Image but received %s' % type(image))
-
-        shape = tuple(shape)
+    def check_shape(self, image: Image, shape: Tuple[int, ...]):
         channels = image.getbands()
         spatial_shape = tuple(reversed(image.size))
         feature_shape = (*spatial_shape, len(channels))
@@ -200,8 +188,7 @@ class ImageEncoder(BinaryEncoder):
             raise ValueError('Expected shape: %s, but Image has shape: %s'
                              % (shape, feature_shape))
 
-    @classmethod
-    def encode(cls, value: Image) -> bytes:
+    def encode(self, value: Image) -> bytes:
         original_format = value.format
         # We do not support 4-channel PNGs or alpha in general
         if value.mode == 'RGBA':
@@ -212,8 +199,7 @@ class ImageEncoder(BinaryEncoder):
             value.save(image_bytes, format=original_format)
             return image_bytes.getvalue()
 
-    @classmethod
-    def decode(cls, encoded: bytes):
+    def decode(self, encoded: bytes):
         with io.BytesIO(encoded) as buffer:
             image = Image.open(buffer)
             image.load()
@@ -221,17 +207,11 @@ class ImageEncoder(BinaryEncoder):
 
 
 DTYPE_ENCODERS = {
-    'Float': ScalarEncoder(float),
-    'Int': ScalarEncoder(int),
-    'Categorical': CategoricalEncoder(),
-    'Numpy': NumpyEncoder(),
-    'Image': ImageEncoder()
-}
-
-
-DTYPE_COMPATIBILITY = {
-    dtype_name: encoder.expects()
-    for dtype_name, encoder in DTYPE_ENCODERS.items()
+    'numeric': NumericEncoder(),
+    'categorical': CategoricalEncoder(),
+    'numpy': NumpyEncoder(),
+    'image': ImageEncoder(),
+    'text': TextEncoder(),
 }
 
 
@@ -242,35 +222,23 @@ ENCODER_COMPATIBILITY = dict(itertools.chain.from_iterable(
 
 
 FILE_EXTENSION_ENCODERS = {
-    'npy': DTYPE_ENCODERS['Numpy'],
-    'png': DTYPE_ENCODERS['Image'],
-    'jpg': DTYPE_ENCODERS['Image'],
-    'jpeg': DTYPE_ENCODERS['Image']
+    'npy': DTYPE_ENCODERS['numpy'],
+    'png': DTYPE_ENCODERS['image'],
+    'jpg': DTYPE_ENCODERS['image'],
+    'jpeg': DTYPE_ENCODERS['image']
 }
 
 
-def parse_dtype(dtype_str: str) -> Tuple[str, Tuple[int, ...]]:
-    dtype_name, dtype_shape_str = dtype_str.strip().split(' ', 1)
-    shape = tuple(int(dim) for dim in dtype_shape_str.strip('()').split('x'))
-    if not shape or not all(dim > 0 for dim in shape):
-        raise ValueError('Bad shape information provided. Please verify the '
-                         'full type string including shape was used')
-    if dtype_name not in DTYPE_ENCODERS:
-        raise TypeError('This type is currently not supported: %s'
-                        % dtype_name)
-    return dtype_name, shape
-
-
-def encode_feature(feature, dtype_str: str) -> Any:
-    dtype_name, shape = parse_dtype(dtype_str)
-    encoder = DTYPE_ENCODERS[dtype_name]
-    encoder.verify(feature, shape)
+def encode_feature(feature, specs: FeatureSpec) -> Any:
+    encoder = DTYPE_ENCODERS[specs.dtype]
+    encoder.check_type(feature)
+    encoder.check_shape(feature, specs.shape)
     return encoder.encode_json(feature)
 
 
-def decode_feature(feature, dtype_str: str) -> Any:
-    dtype_name, shape = parse_dtype(dtype_str)
-    encoder = DTYPE_ENCODERS[dtype_name]
+def decode_feature(feature, specs: FeatureSpec) -> Any:
+    encoder = DTYPE_ENCODERS[specs.dtype]
     decoded = encoder.decode_json(feature)
-    encoder.verify(decoded, shape)
+    encoder.check_type(decoded)
+    encoder.check_shape(decoded, specs.shape)
     return decoded

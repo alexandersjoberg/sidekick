@@ -13,7 +13,6 @@ TEST_REQUIRED_PACKAGES = [
     'pytest'
 ]
 
-
 setup(
     name='sidekick',
     version='0.2.0',

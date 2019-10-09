@@ -230,14 +230,26 @@ FILE_EXTENSION_ENCODERS = {
 
 
 def encode_feature(feature, specs: FeatureSpec) -> Any:
-    encoder = DTYPE_ENCODERS[specs.dtype]
+    # TODO numeric can be both npy and float. Higher
+    # dimensions need to be set to npy right now
+    if specs.dtype == 'numeric' and (len(specs.shape) > 1
+                                     or specs.shape[0] > 1):
+        encoder = DTYPE_ENCODERS['numpy']
+    else:
+        encoder = DTYPE_ENCODERS[specs.dtype]
     encoder.check_type(feature)
     encoder.check_shape(feature, specs.shape)
     return encoder.encode_json(feature)
 
 
 def decode_feature(feature, specs: FeatureSpec) -> Any:
-    encoder = DTYPE_ENCODERS[specs.dtype]
+    # TODO numeric can be both npy and float. Higher
+    # dimensions need to be set to npy right now
+    if specs.dtype == 'numeric' and (len(specs.shape) > 1
+                                     or specs.shape[0] > 1):
+        encoder = DTYPE_ENCODERS['numpy']
+    else:
+        encoder = DTYPE_ENCODERS[specs.dtype]
     decoded = encoder.decode_json(feature)
     encoder.check_type(decoded)
     encoder.check_shape(decoded, specs.shape)

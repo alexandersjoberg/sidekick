@@ -192,7 +192,7 @@ def test_deployment_categorical():
     categories = 10
     features_in = [
         FeatureSpec('input_1', 'numeric', (1,)),
-        FeatureSpec('input_2', 'numpy', (30,)),
+        FeatureSpec('input_2', 'numeric', (30,)),
     ]
     features_out = [FeatureSpec('output', 'categorical', (categories,))]
     predictions = {str(i): random.random() for i in range(categories)}
@@ -236,8 +236,8 @@ def test_deployment_categorical():
 @responses.activate
 def test_deployment_numpy_autoencoder():
     shape = (100, 10, 3)
-    features_in = [FeatureSpec('input', 'numpy', shape)]
-    features_out = [FeatureSpec('output', 'numpy', shape)]
+    features_in = [FeatureSpec('input', 'numeric', shape)]
+    features_out = [FeatureSpec('output', 'numeric', shape)]
 
     arr = np.random.rand(*shape).astype(np.float32)
     encoded = sidekick.encode.NumpyEncoder().encode_json(arr)

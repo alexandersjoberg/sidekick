@@ -178,15 +178,10 @@ client.predict_lazy([
 ])
 ```
 
-### Compatible filetypes and available field types
+### Compatible filetypes
 The filetypes compatible with sidekick may shown by:
 ```python
 print(sidekick.encode.FILE_EXTENSION_ENCODERS)
-```
-
-Currently supported field types may be shown by:
-```python
-print(sidekick.encode.DTYPE_ENCODERS)
 ```
 
 # Examples

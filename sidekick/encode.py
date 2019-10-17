@@ -2,7 +2,6 @@ import abc
 import base64
 import io
 import itertools
-import warnings
 from typing import Any, Mapping, Set, Tuple
 
 import numpy as np
@@ -108,12 +107,7 @@ class TextEncoder(Encoder):
         return {str}
 
     def check_shape(self, value: str, shape: Tuple[int]):
-        if len(value) >= shape[0]:
-            warnings.warn(
-                'Text will be cropped to not exceed maximum length. '
-                'Text length: %s characters. '
-                'Maximum length: %s characters.' % (len(value), shape[0])
-            )
+        pass
 
     def encode(self, value):
         return value
@@ -206,7 +200,7 @@ class ImageEncoder(BinaryEncoder):
         return image
 
 
-DTYPE_ENCODERS = {
+ENCODERS = {
     'numeric': NumericEncoder(),
     'categorical': CategoricalEncoder(),
     'numpy': NumpyEncoder(),
@@ -217,27 +211,33 @@ DTYPE_ENCODERS = {
 
 ENCODER_COMPATIBILITY = dict(itertools.chain.from_iterable(
     ((compatible_type, encoder) for compatible_type in encoder.expects())
-    for encoder in DTYPE_ENCODERS.values()
+    for encoder in ENCODERS.values()
 ))
 
 
 FILE_EXTENSION_ENCODERS = {
-    'npy': DTYPE_ENCODERS['numpy'],
-    'png': DTYPE_ENCODERS['image'],
-    'jpg': DTYPE_ENCODERS['image'],
-    'jpeg': DTYPE_ENCODERS['image']
+    'npy': ENCODERS['numpy'],
+    'png': ENCODERS['image'],
+    'jpg': ENCODERS['image'],
+    'jpeg': ENCODERS['image']
 }
 
 
+def get_encoder(dtype: str, shape: Tuple[int, ...]) -> Encoder:
+    if dtype == 'numeric' and (len(shape) > 1 or shape[0] > 1):
+        return ENCODERS['numpy']
+    return ENCODERS[dtype]
+
+
 def encode_feature(feature, specs: FeatureSpec) -> Any:
-    encoder = DTYPE_ENCODERS[specs.dtype]
+    encoder = get_encoder(specs.dtype, specs.shape)
     encoder.check_type(feature)
     encoder.check_shape(feature, specs.shape)
     return encoder.encode_json(feature)
 
 
 def decode_feature(feature, specs: FeatureSpec) -> Any:
-    encoder = DTYPE_ENCODERS[specs.dtype]
+    encoder = get_encoder(specs.dtype, specs.shape)
     decoded = encoder.decode_json(feature)
     encoder.check_type(decoded)
     encoder.check_shape(decoded, specs.shape)

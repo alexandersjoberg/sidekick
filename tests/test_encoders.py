@@ -2,8 +2,9 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from sidekick.encode import (CategoricalEncoder, ImageEncoder, NumericEncoder,
-                             NumpyEncoder, TextEncoder)
+from sidekick.encode import (ENCODERS, CategoricalEncoder, ImageEncoder,
+                             NumericEncoder, NumpyEncoder, TextEncoder,
+                             get_encoder)
 
 
 def test_numeric_encoder():
@@ -25,9 +26,6 @@ def test_text_encoder():
 
     with pytest.raises(TypeError):
         encoder.check_type(34)
-
-    with pytest.warns(UserWarning):
-        encoder.check_shape(value, shape=(2,))
 
 
 def test_categorical_encoder():
@@ -79,3 +77,10 @@ def test_numpy_encoder():
     encoder.check_type(arr)
     with pytest.raises(TypeError):
         encoder.check_type([1, 2, 3])
+
+
+def test_get_encoder():
+    assert get_encoder(dtype='numeric', shape=(1,)) is ENCODERS['numeric']
+    assert get_encoder(dtype='numeric', shape=(2,)) is ENCODERS['numpy']
+    assert get_encoder(dtype='numeric', shape=(2, 2)) is ENCODERS['numpy']
+    assert get_encoder(dtype='image', shape=(2, 3)) is ENCODERS['image']

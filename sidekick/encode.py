@@ -108,12 +108,7 @@ class TextEncoder(Encoder):
         return {str}
 
     def check_shape(self, value: str, shape: Tuple[int]):
-        if len(value) >= shape[0]:
-            warnings.warn(
-                'Text will be cropped to not exceed maximum length. '
-                'Text length: %s characters. '
-                'Maximum length: %s characters.' % (len(value), shape[0])
-            )
+        pass
 
     def encode(self, value):
         return value

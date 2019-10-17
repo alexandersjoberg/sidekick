@@ -2,7 +2,6 @@ import abc
 import base64
 import io
 import itertools
-import warnings
 from typing import Any, Mapping, Set, Tuple
 
 import numpy as np

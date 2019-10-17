@@ -27,9 +27,6 @@ def test_text_encoder():
     with pytest.raises(TypeError):
         encoder.check_type(34)
 
-    with pytest.warns(UserWarning):
-        encoder.check_shape(value, shape=(2,))
-
 
 def test_categorical_encoder():
     encoder = CategoricalEncoder()

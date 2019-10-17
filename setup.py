@@ -15,7 +15,7 @@ TEST_REQUIRED_PACKAGES = [
 
 setup(
     name='sidekick',
-    version='0.2.0',
+    version='0.2.1',
     install_requires=REQUIRED_PACKAGES,
     extras_require={'test': TEST_REQUIRED_PACKAGES},
     packages=find_packages(include='sidekick.*'),

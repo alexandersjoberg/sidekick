@@ -22,5 +22,5 @@ setup(
     description='Sidekick for the Peltarion platform',
     author='Peltarion',
     author_email='support@peltarion.com',
-    maintainer='agrinh'
+    maintainer='alvaro-garcia-carrasco'
 )

@@ -206,7 +206,7 @@ class ImageEncoder(BinaryEncoder):
         return image
 
 
-DTYPE_ENCODERS = {
+ENCODERS = {
     'numeric': NumericEncoder(),
     'categorical': CategoricalEncoder(),
     'numpy': NumpyEncoder(),
@@ -217,39 +217,33 @@ DTYPE_ENCODERS = {
 
 ENCODER_COMPATIBILITY = dict(itertools.chain.from_iterable(
     ((compatible_type, encoder) for compatible_type in encoder.expects())
-    for encoder in DTYPE_ENCODERS.values()
+    for encoder in ENCODERS.values()
 ))
 
 
 FILE_EXTENSION_ENCODERS = {
-    'npy': DTYPE_ENCODERS['numpy'],
-    'png': DTYPE_ENCODERS['image'],
-    'jpg': DTYPE_ENCODERS['image'],
-    'jpeg': DTYPE_ENCODERS['image']
+    'npy': ENCODERS['numpy'],
+    'png': ENCODERS['image'],
+    'jpg': ENCODERS['image'],
+    'jpeg': ENCODERS['image']
 }
 
 
+def get_encoder(dtype: str, shape: Tuple[int, ...]) -> Encoder:
+    if dtype == 'numeric' and (len(shape) > 1 or shape[0] > 1):
+        return ENCODERS['numpy']
+    return ENCODERS[dtype]
+
+
 def encode_feature(feature, specs: FeatureSpec) -> Any:
-    # TODO numeric can be both npy and float. Higher
-    # dimensions need to be set to npy right now
-    if specs.dtype == 'numeric' and (len(specs.shape) > 1
-                                     or specs.shape[0] > 1):
-        encoder = DTYPE_ENCODERS['numpy']
-    else:
-        encoder = DTYPE_ENCODERS[specs.dtype]
+    encoder = get_encoder(specs.dtype, specs.shape)
     encoder.check_type(feature)
     encoder.check_shape(feature, specs.shape)
     return encoder.encode_json(feature)
 
 
 def decode_feature(feature, specs: FeatureSpec) -> Any:
-    # TODO numeric can be both npy and float. Higher
-    # dimensions need to be set to npy right now
-    if specs.dtype == 'numeric' and (len(specs.shape) > 1
-                                     or specs.shape[0] > 1):
-        encoder = DTYPE_ENCODERS['numpy']
-    else:
-        encoder = DTYPE_ENCODERS[specs.dtype]
+    encoder = get_encoder(specs.dtype, specs.shape)
     decoded = encoder.decode_json(feature)
     encoder.check_type(decoded)
     encoder.check_shape(decoded, specs.shape)

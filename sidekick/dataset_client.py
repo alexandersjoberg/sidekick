@@ -117,5 +117,7 @@ class Polling:
                 if job.id not in self.successful_jobs:
                     self.successful_jobs.append(job.id)
                     print('Job %s successfully saved.' % job.id)
-            else:  # Status.PROCESSING
+            elif job.status is Status.PROCESSING:
                 self.ongoing = True
+            else:
+                raise ValueError('Invalid job status %s' % job.status)

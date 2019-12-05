@@ -132,3 +132,12 @@ class TestPolling:
         assert polling.successful_jobs == ['1']
         assert polling.failed_jobs == []
         assert polling.ongoing is False
+
+    def test_invalid_status(self):
+
+        def f():
+            return [UploadJob('1', 'PENDING')]
+
+        polling = Polling(f)
+        with pytest.raises(ValueError):
+            polling.update()

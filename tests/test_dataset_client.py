@@ -23,7 +23,8 @@ def csv_file(tmp_path):
 @pytest.fixture
 def jpeg_file(tmp_path):
     filepath = tmp_path / 'mock.jpeg'
-    Image.new(mode='RGB', size=(10, 10)).save(filepath)
+    with filepath.open('w') as file:
+        file.write('mock')
     return filepath
 
 

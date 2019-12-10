@@ -2,7 +2,6 @@ from zipfile import ZipFile
 
 import pytest
 import responses
-from PIL import Image
 
 from sidekick.dataset_client import Dataset, Status, UploadJob
 

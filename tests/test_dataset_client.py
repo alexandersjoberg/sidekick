@@ -1,143 +1,187 @@
-import csv
 from zipfile import ZipFile
 
 import pytest
 import responses
+from PIL import Image
 
-from sidekick.dataset_client import DatasetClient, Polling, Status, UploadJob
+from sidekick.dataset_client import Dataset, Status, UploadJob
 
 
-def test_upload_job():
+@pytest.fixture
+def client():
+    return Dataset(url='http://localhost', token='')
+
+
+@pytest.fixture
+def csv_file(tmp_path):
+    filepath = tmp_path / 'mock.csv'
+    with filepath.open('w') as file:
+        file.write('mock')
+    return filepath
+
+
+@pytest.fixture
+def jpeg_file(tmp_path):
+    filepath = tmp_path / 'mock.jpeg'
+    Image.new(mode='RGB', size=(10, 10)).save(filepath)
+    return filepath
+
+
+@pytest.fixture
+def zip_file(tmp_path):
+    filepath = tmp_path / 'mock.zip'
+    with ZipFile(filepath, 'w') as zipfile:
+        zipfile.writestr('mock.txt', 'mock')
+    return filepath
+
+
+class TestDeserializeJobUpload:
     upload_id = '9b6c9f7c9bc74c13a462f74b7dfb497b'
-    status = 'SUCCESS'
-    job_dict = {'uploadId': upload_id, 'status': status}
-    job_object = UploadJob.from_dict(job_dict)
-    assert job_object.status is Status[status]
-    assert job_object.id == upload_id
-    assert job_object.to_dict() == job_dict
+
+    def test_success_job(self):
+        status = 'SUCCESS'
+        job_dict = {'uploadId': self.upload_id, 'status': status}
+        job_object = UploadJob.from_dict(job_dict)
+        assert job_object.status is Status[status]
+        assert job_object.id == self.upload_id
+        assert job_object.message is None
+
+    def test_failed_job(self):
+        status = 'FAILED'
+        message = 'mock'
+        job_dict = {
+            'uploadId': self.upload_id, 'status': status, 'message': message
+        }
+        job_object = UploadJob.from_dict(job_dict)
+        assert job_object.status is Status[status]
+        assert job_object.id == self.upload_id
+        assert job_object.message == message
 
 
 class TestDatasetClient:
-    url = 'http://localhost/'
+    def test_url_with_trailing_slash(self):
+        url = 'http://localhost'
+        client1 = Dataset(url=url, token='')
+        client2 = Dataset(url=url + '/', token='')
+        assert client1.url == url
+        assert client2.url == url
+
+    def test_non_existent_files(self, client):
+        with pytest.raises(FileNotFoundError):
+            client.upload_files(['mock.csv'])
+
+    def test_files_with_invalid_extension(self, client, jpeg_file):
+        with pytest.raises(ValueError):
+            client.upload_files([jpeg_file])
 
     @responses.activate
-    def test_create_wrapper(self):
-        client = DatasetClient(url=self.url, token='')
-        wrapper_id = "b46ce0d238944007bfd8b0877fb4625e"
+    def test_upload_files(self, client, csv_file, zip_file):
+        wrapper_id = "wrapper_id"
+        upload_id1 = 'id1'
+        upload_id2 = 'id2'
 
         responses.add(
             method=responses.POST,
-            url=self.url,
+            url=client.url,
             json={"datasetWrapperId": wrapper_id}
         )
-        assert wrapper_id == client.create_wrapper(name='', description='')
-
-    @responses.activate
-    def test_complete_upload(self):
-        client = DatasetClient(url=self.url, token='')
-        wrapper_id = "b46ce0d238944007bfd8b0877fb4625e"
 
         responses.add(
             method=responses.POST,
-            url='%s%s/upload_complete' % (self.url, wrapper_id),
-            status=204,
+            url='%s/%s/upload' % (client.url, wrapper_id),
+            json={'uploadId': upload_id1},
         )
-        client.complete_upload(wrapper_id)
 
-    @responses.activate
-    def test_get_status(self):
-        client = DatasetClient(url=self.url, token='')
-        wrapper_id = "b46ce0d238944007bfd8b0877fb4625e"
-        upload_id = 'c9500e7fc3fc41aeac2f34c1805d3e8e'
-        status = 'SUCCESS'
-        mock_response = {
-            'uploadStatuses': [
-                {
-                    'uploadId': upload_id,
-                    'status': status,
-                }
-            ]
-        }
+        responses.add(
+            method=responses.POST,
+            url='%s/%s/upload' % (client.url, wrapper_id),
+            json={'uploadId': upload_id2},
+        )
 
         responses.add(
             method=responses.GET,
-            url='%s%s/uploads' % (self.url, wrapper_id),
-            json=mock_response,
+            url='%s/%s/uploads' % (client.url, wrapper_id),
+            json={
+                'uploadStatuses': [
+                    {
+                        'uploadId': upload_id1,
+                        'status': 'PROCESSING',
+                    },
+                    {
+                        'uploadId': upload_id2,
+                        'status': 'SUCCESS',
+                    }
+                ]
+            },
         )
-        output = client.get_status(wrapper_id)
-        assert len(output) == 1
-        assert output[0].status is Status[status]
-        assert output[0].id == upload_id
 
-    @responses.activate
-    def test_file_upload(self, tmp_path):
-        client = DatasetClient(url=self.url, token='')
-        wrapper_id = "b46ce0d238944007bfd8b0877fb4625e"
-        upload_id = 'c9500e7fc3fc41aeac2f34c1805d3e8e'
+        responses.add(
+            method=responses.GET,
+            url='%s/%s/uploads' % (client.url, wrapper_id),
+            json={
+                'uploadStatuses': [
+                    {
+                        'uploadId': upload_id1,
+                        'status': 'SUCCESS',
+                    },
+                    {
+                        'uploadId': upload_id2,
+                        'status': 'SUCCESS',
+                    }
+                ]
+            },
+        )
 
         responses.add(
             method=responses.POST,
-            url='%s%s/upload' % (self.url, wrapper_id),
-            json={'uploadId': upload_id},
+            url='%s/%s/upload_complete' % (client.url, wrapper_id),
+            status=204,
         )
 
-        with pytest.raises(FileNotFoundError):
-            client.upload_file(tmp_path / 'mock.csv', wrapper_id)
+        client.upload_files([csv_file, zip_file], num_threads=1)
+        assert len(responses.calls) == 6
 
-        invalid_extension_dataset = tmp_path / 'mock.fds'
-        with open(invalid_extension_dataset, 'w') as f:
-            f.write('')
+    @responses.activate
+    def test_failed_upload_job(self, client, csv_file, zip_file):
+        wrapper_id = 'wrapper_id'
+        upload_id1 = 'id1'
+        upload_id2 = 'id2'
 
-        with pytest.raises(ValueError):
-            client.upload_file(invalid_extension_dataset, wrapper_id)
+        responses.add(
+            method=responses.POST,
+            url=client.url,
+            json={'datasetWrapperId': wrapper_id}
+        )
 
-        csv_dataset = tmp_path / 'dataset.csv'
-        with open(csv_dataset, 'w') as employee_file:
-            employee_writer = csv.writer(employee_file, delimiter=',')
-            employee_writer.writerow(['Anders', 'Fabian', 'Alex'])
-            employee_writer.writerow(['Martin', 'Daniel', 'Lena'])
+        responses.add(
+            method=responses.POST,
+            url='%s/%s/upload' % (client.url, wrapper_id),
+            json={'uploadId': upload_id1},
+        )
 
-        with ZipFile(csv_dataset, 'w') as myzip:
-            myzip.write(csv_dataset)
+        responses.add(
+            method=responses.POST,
+            url='%s/%s/upload' % (client.url, wrapper_id),
+            json={'uploadId': upload_id2},
+        )
 
-        assert client.upload_file(csv_dataset, wrapper_id) == upload_id
+        responses.add(
+            method=responses.GET,
+            url='%s/%s/uploads' % (client.url, wrapper_id),
+            json={
+                'uploadStatuses': [
+                    {
+                        'uploadId': upload_id1,
+                        'status': 'PROCESSING',
+                    },
+                    {
+                        'uploadId': upload_id2,
+                        'status': 'FAILED',
+                        'message': 'mock'
+                    }
+                ]
+            },
+        )
 
-
-class TestPolling:
-    def test_ongoing(self):
-
-        def f():
-            return [
-                UploadJob('1', Status.SUCCESS),
-                UploadJob('2', Status.SUCCESS),
-                UploadJob('3', Status.PROCESSING),
-                UploadJob('4', Status.FAILED),
-                UploadJob('5', Status.FAILED),
-
-            ]
-
-        polling = Polling(f)
-        polling.update()
-        assert polling.failed_jobs == ['4', '5']
-        assert polling.successful_jobs == ['1', '2']
-        assert polling.ongoing is True
-
-    def test_not_ongoing(self):
-
-        def f():
-            return [UploadJob('1', Status.SUCCESS)]
-
-        polling = Polling(f)
-        polling.update()
-        assert polling.successful_jobs == ['1']
-        assert polling.failed_jobs == []
-        assert polling.ongoing is False
-
-    def test_invalid_status(self):
-
-        def f():
-            return [UploadJob('1', 'PENDING')]
-
-        polling = Polling(f)
-        with pytest.raises(ValueError):
-            polling.update()
+        with pytest.raises(IOError):
+            client.upload_files([csv_file, zip_file], num_threads=1)

@@ -59,7 +59,6 @@ class Dataset:
         filepaths: List[str],
         name: str = 'Sidekick upload',
         description: str = 'Sidekick upload',
-        num_threads: int = -1,
     ) -> None:
         """Creates a dataset and uploads files to it.
 
@@ -67,9 +66,6 @@ class Dataset:
             filepaths: List of files to upload to the dataset.
             name: Name of the dataset.
             description: Description of the dataset.
-            num_threads: Number of threads started when uploading files. The
-              default behaviour starts as as many threads as files with an
-              upper limit of 10.
 
         Raises:
             FileNotFoundError: One or more filepaths not found.
@@ -81,7 +77,7 @@ class Dataset:
         paths = [Path(path).resolve() for path in filepaths]
         self._validate_paths(paths)
         wrapper_id = self._create_wrapper(name, description)
-        jobs_mapping = self._stage_files(paths, wrapper_id, num_threads)
+        jobs_mapping = self._stage_files(paths, wrapper_id)
         self._wait_until_completed(wrapper_id, jobs_mapping)
         self._complete_upload(wrapper_id)
 
@@ -110,10 +106,10 @@ class Dataset:
         response.raise_for_status()
 
     def _stage_files(
-        self, filepaths: List[Path], wrapper_id: str, num_threads: int
+        self, filepaths: List[Path], wrapper_id: str
     ) -> Dict[str, Path]:
 
-        workers = min(10, len(filepaths)) if num_threads > 0 else num_threads
+        workers = min(10, len(filepaths))
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = []
             for path in filepaths:
@@ -182,11 +178,12 @@ class Dataset:
                 else:  # status is PROCESSING:
                     ongoing = True
 
+            if ongoing:
+                time.sleep(1)
+
             elapsed_time = datetime.now() - latest_reporting_time
             if elapsed_time.seconds > 60 * 5:
-                print('uploading files....')
+                print('Uploading files....')
                 latest_reporting_time = datetime.now()
-
-            time.sleep(1)
 
         print('All files were uploaded.')

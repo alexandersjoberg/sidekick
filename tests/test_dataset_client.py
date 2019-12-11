@@ -2,6 +2,7 @@ from zipfile import ZipFile
 
 import pytest
 import responses
+from PIL import Image
 
 from sidekick.dataset_client import Dataset, Status, UploadJob
 
@@ -22,8 +23,7 @@ def csv_file(tmp_path):
 @pytest.fixture
 def jpeg_file(tmp_path):
     filepath = tmp_path / 'mock.jpeg'
-    with filepath.open('w') as file:
-        file.write('mock')
+    Image.new(mode='RGB', size=(10, 10)).save(filepath)
     return filepath
 
 
@@ -138,7 +138,7 @@ class TestDatasetClient:
             status=204,
         )
 
-        client.upload_files([csv_file, zip_file], num_threads=1)
+        client.upload_files([csv_file, zip_file])
         assert len(responses.calls) == 6
 
     @responses.activate
@@ -184,4 +184,4 @@ class TestDatasetClient:
         )
 
         with pytest.raises(IOError):
-            client.upload_files([csv_file, zip_file], num_threads=1)
+            client.upload_files([csv_file, zip_file])

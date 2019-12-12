@@ -74,7 +74,7 @@ class Dataset:
 
         """
 
-        paths = [Path(path).resolve() for path in filepaths]
+        paths = [Path(str(path)).resolve() for path in filepaths]
         self._validate_paths(paths)
         wrapper_id = self._create_wrapper(name, description)
         jobs_mapping = self._stage_files(paths, wrapper_id)

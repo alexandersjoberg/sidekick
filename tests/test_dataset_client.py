@@ -23,14 +23,14 @@ def csv_file(tmp_path):
 @pytest.fixture
 def jpeg_file(tmp_path):
     filepath = tmp_path / 'mock.jpeg'
-    Image.new(mode='RGB', size=(10, 10)).save(filepath)
+    Image.new(mode='RGB', size=(10, 10)).save(str(filepath))
     return filepath
 
 
 @pytest.fixture
 def zip_file(tmp_path):
     filepath = tmp_path / 'mock.zip'
-    with ZipFile(filepath, 'w') as zipfile:
+    with ZipFile(str(filepath), 'w') as zipfile:
         zipfile.writestr('mock.txt', 'mock')
     return filepath
 

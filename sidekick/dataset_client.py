@@ -1,12 +1,12 @@
 import time
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List
 
 import requests
 from requests.adapters import HTTPAdapter
+from tqdm import tqdm
 
 
 class Status(Enum):
@@ -32,7 +32,7 @@ class UploadJob:
         )
 
 
-class Dataset:
+class DatasetClient:
     """Client for the Dataset API."""
 
     _MAX_RETRIES = 3
@@ -54,11 +54,12 @@ class Dataset:
             }
         )
 
-    def upload_files(
+    def upload_data(
         self,
         filepaths: List[str],
         name: str = 'Sidekick upload',
         description: str = 'Sidekick upload',
+        progress: bool = True,
     ) -> None:
         """Creates a dataset and uploads files to it.
 
@@ -66,6 +67,7 @@ class Dataset:
             filepaths: List of files to upload to the dataset.
             name: Name of the dataset.
             description: Description of the dataset.
+            progress: Print progress.
 
         Raises:
             FileNotFoundError: One or more filepaths not found.
@@ -73,12 +75,11 @@ class Dataset:
             IOError: Error occurred while saving files in dataset.
 
         """
-
         paths = [Path(str(path)).resolve() for path in filepaths]
         self._validate_paths(paths)
         wrapper_id = self._create_wrapper(name, description)
-        jobs_mapping = self._stage_files(paths, wrapper_id)
-        self._wait_until_completed(wrapper_id, jobs_mapping)
+        jobs_mapping = self._stage_files(paths, wrapper_id, progress)
+        self._wait_until_completed(wrapper_id, jobs_mapping, progress)
         self._complete_upload(wrapper_id)
 
     def _create_wrapper(self, name: str, description: str) -> str:
@@ -106,17 +107,30 @@ class Dataset:
         response.raise_for_status()
 
     def _stage_files(
-        self, filepaths: List[Path], wrapper_id: str
+        self, filepaths: List[Path], wrapper_id: str, progress: bool,
     ) -> Dict[str, Path]:
 
-        workers = min(10, len(filepaths))
+        num_files = len(filepaths)
+        status_bar = tqdm(
+            total=num_files,
+            unit='file',
+            desc='Uploading files',
+            disable=not progress,
+        )
+        workers = min(10, num_files)
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = []
-            for path in filepaths:
-                future = pool.submit(self._stage_file, path, wrapper_id)
-                futures.append(future)
-            job_ids = [future.result() for future in futures]
-        return dict(zip(job_ids, filepaths))
+            future_to_path = {
+                pool.submit(self._stage_file, path, wrapper_id): path
+                for path in filepaths
+            }
+            job_mapping = []
+            for future in as_completed(future_to_path):
+                path = future_to_path[future]
+                job_id = future.result()
+                job_mapping.append((job_id, path))
+                status_bar.update()
+        status_bar.close()
+        return dict(job_mapping)
 
     def _stage_file(self, filepath: Path, wrapper_id: str) -> str:
         content_type = self._EXTENSION_MAPPING[filepath.suffix]
@@ -124,14 +138,12 @@ class Dataset:
         with filepath.open('rb') as file:
             data = file.read()
 
-        print('Staging file: %s...' % filepath)
         response = self._session.post(
             url=self.url + '/%s/upload' % wrapper_id,
             headers={'Content-Type': content_type},
             data=data
         )
         response.raise_for_status()
-        print('File staged: %s' % filepath)
         return response.json()['uploadId']
 
     def _validate_paths(self, paths: List[Path]) -> None:
@@ -152,13 +164,18 @@ class Dataset:
             )
 
     def _wait_until_completed(
-        self, wrapper_id: str, job_mapping: Dict[str, Path]
+        self, wrapper_id: str, job_mapping: Dict[str, Path], progress: bool,
     ) -> None:
         """Waits until all jobs are saved."""
 
+        status_bar = tqdm(
+            total=len(job_mapping),
+            unit='file',
+            desc='Saving files',
+            disable=not progress,
+        )
         ongoing = True
         successful_jobs = []  # type: List[str]
-        latest_reporting_time = datetime.now()
 
         while ongoing:
             ongoing = False
@@ -173,17 +190,11 @@ class Dataset:
                 elif job.status is Status.SUCCESS:
                     if job.id not in successful_jobs:
                         successful_jobs.append(job.id)
-                        filename = job_mapping[job.id]
-                        print('File uploaded: %s' % filename)
+                        status_bar.update()
                 else:  # status is PROCESSING:
                     ongoing = True
 
             if ongoing:
                 time.sleep(1)
 
-            elapsed_time = datetime.now() - latest_reporting_time
-            if elapsed_time.seconds > 60 * 5:
-                print('Uploading files....')
-                latest_reporting_time = datetime.now()
-
-        print('All files were uploaded.')
+        status_bar.close()

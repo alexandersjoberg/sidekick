@@ -4,12 +4,12 @@ import pytest
 import responses
 from PIL import Image
 
-from sidekick.dataset_client import Dataset, Status, UploadJob
+from sidekick.dataset_client import DatasetClient, Status, UploadJob
 
 
 @pytest.fixture
 def client():
-    return Dataset(url='http://localhost', token='')
+    return DatasetClient(url='http://localhost', token='')
 
 
 @pytest.fixture
@@ -61,21 +61,21 @@ class TestDeserializeJobUpload:
 class TestDatasetClient:
     def test_url_with_trailing_slash(self):
         url = 'http://localhost'
-        client1 = Dataset(url=url, token='')
-        client2 = Dataset(url=url + '/', token='')
+        client1 = DatasetClient(url=url, token='')
+        client2 = DatasetClient(url=url + '/', token='')
         assert client1.url == url
         assert client2.url == url
 
     def test_non_existent_files(self, client):
         with pytest.raises(FileNotFoundError):
-            client.upload_files(['mock.csv'])
+            client.upload_data(['mock.csv'])
 
     def test_files_with_invalid_extension(self, client, jpeg_file):
         with pytest.raises(ValueError):
-            client.upload_files([jpeg_file])
+            client.upload_data([jpeg_file])
 
     @responses.activate
-    def test_upload_files(self, client, csv_file, zip_file):
+    def test_upload_data(self, client, csv_file, zip_file):
         wrapper_id = "wrapper_id"
         upload_id1 = 'id1'
         upload_id2 = 'id2'
@@ -138,7 +138,7 @@ class TestDatasetClient:
             status=204,
         )
 
-        client.upload_files([csv_file, zip_file])
+        client.upload_data([csv_file, zip_file])
         assert len(responses.calls) == 6
 
     @responses.activate
@@ -184,4 +184,4 @@ class TestDatasetClient:
         )
 
         with pytest.raises(IOError):
-            client.upload_files([csv_file, zip_file])
+            client.upload_data([csv_file, zip_file])

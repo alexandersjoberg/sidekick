@@ -130,8 +130,8 @@ files = ['path/to/dataset.zip']
 response = client.upload_data(
     files=files, 
     dataset_name='My dataset', 
-    dataset_description='My description', 
-    progress=True)
+    dataset_description='My description'
+)
 ```
 
 ![dataset_upload example](static/image/dataset_upload_example.png "Dataset upload example")

@@ -175,12 +175,7 @@ class ImageEncoder(BinaryEncoder):
         return {Image.Image}
 
     def check_shape(self, image: Image, shape: Tuple[int, ...]):
-        channels = image.getbands()
-        spatial_shape = tuple(reversed(image.size))
-        feature_shape = (*spatial_shape, len(channels))
-        if feature_shape != shape:
-            raise ValueError('Expected shape: %s, but Image has shape: %s'
-                             % (shape, feature_shape))
+        pass
 
     def encode(self, value: Image) -> bytes:
         original_format = value.format

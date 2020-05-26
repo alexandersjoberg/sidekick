@@ -13,7 +13,3 @@ install:
   - pip install tox
 script:
   - tox
-deploy:
-  provider: releases
-  on:
-    tags: true

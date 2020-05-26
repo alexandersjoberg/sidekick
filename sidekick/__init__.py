@@ -2,10 +2,12 @@ import pkg_resources
 
 from . import deployment, encode
 from .dataset import create_dataset, process_image
+from .dataset_client import DatasetClient
 from .deployment import Deployment
 
 __all__ = [
     'Deployment',
+    'DatasetClient',
     'create_dataset',
     'deployment',
     'encode',

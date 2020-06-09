@@ -60,8 +60,6 @@ def test_image_encoder():
     assert encoder.media_type(image) == 'image/png'
 
     encoder.check_shape(image, shape)
-    with pytest.raises(ValueError):
-        encoder.check_shape(image, (1, 10, 3))
 
 
 def test_numpy_encoder():
